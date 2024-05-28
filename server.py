@@ -2,10 +2,12 @@
 import socket
 import threading
 import random
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
 
 # Параметры Диффи-Хеллмана
-p = 23  # Простое число
-g = 5   # Примитивный корень
+p = 23
+g = 5
 
 def generate_secret():
     return random.randint(1, p-1)
@@ -30,6 +32,36 @@ def handle_client(client_socket):
     # Вычисление общего секрета
     shared_secret = compute_shared_secret(client_public_key, server_secret)
     print(f"Общий секрет: {shared_secret}")
+
+    # Генерация RSA ключей
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    public_key = private_key.public_key()
+
+    # Сериализация публичного ключа
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    client_socket.send(pem_public_key)
+
+    # Получение публичного ключа клиента
+    pem_client_public_key = client_socket.recv(1024)
+    client_public_key = serialization.load_pem_public_key(pem_client_public_key)
+
+    # Пример обмена зашифрованным сообщением
+    encrypted_message = client_socket.recv(1024)
+    decrypted_message = private_key.decrypt(
+        encrypted_message,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    print(f"Зашифрованное сообщение от клиента: {decrypted_message.decode()}")
 
     client_socket.close()
 
