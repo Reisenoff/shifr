@@ -1,6 +1,9 @@
 # client.py
 import socket
 import random
+import os
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
 
 # Параметры Диффи-Хеллмана
 p = 23
@@ -61,6 +64,28 @@ def start_client():
 
     shared_secret = compute_shared_secret(server_public_key, client_secret)
     print(f"Общий секрет: {shared_secret}")
+
+    private_key, public_key = load_or_generate_rsa_keys()
+
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    client.send(pem_public_key)
+
+    pem_server_public_key = client.recv(1024)
+    server_public_key = serialization.load_pem_public_key(pem_server_public_key)
+
+    message = b"Hello, secure world!"
+    encrypted_message = server_public_key.encrypt(
+        message,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    client.send(encrypted_message)
 
     client.close()
 
