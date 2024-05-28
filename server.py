@@ -2,7 +2,6 @@
 import socket
 import threading
 import random
-import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 
@@ -62,17 +61,25 @@ def handle_client(client_socket):
     shared_secret = compute_shared_secret(client_public_key, server_secret)
     print(f"Общий секрет: {shared_secret}")
 
-    private_key, public_key = load_or_generate_rsa_keys()
+    # Генерация RSA ключей
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    public_key = private_key.public_key()
 
+    # Сериализация публичного ключа
     pem_public_key = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
     client_socket.send(pem_public_key)
 
+    # Получение публичного ключа клиента
     pem_client_public_key = client_socket.recv(1024)
     client_public_key = serialization.load_pem_public_key(pem_client_public_key)
 
+    # Пример обмена зашифрованным сообщением
     encrypted_message = client_socket.recv(1024)
     decrypted_message = private_key.decrypt(
         encrypted_message,
